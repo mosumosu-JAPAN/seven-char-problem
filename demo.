@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The 7-character problem in player chat</title>
+<style>
+  :root {
+    --paper: #faf8f3;
+    --paper-deep: #f3efe5;
+    --ink: #1a1a1a;
+    --ink-soft: #4a4a4a;
+    --ink-faint: #8a8a8a;
+    --rule: #d4cfc4;
+    --accent: #8b1a1a;
+    --accent-bg: #f4e8e8;
+    --pos: #2c5f2d;
+    --neg: #8b1a1a;
+    --neu: #888;
+    --hl: #fff5d6;
+    --code-bg: #f3f0e8;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--paper); }
+  body {
+    margin: 0; padding: 0;
+    font-family: "Charter", "Source Serif Pro", "Iowan Old Style", "Palatino Linotype", Georgia, "PingFang SC", "Hiragino Sans GB", serif;
+    color: var(--ink);
+    line-height: 1.65;
+    font-size: 17px;
+    background: var(--paper);
+  }
+  .article {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 64px 24px 120px;
+  }
+  
+  h1 {
+    font-size: 34px;
+    line-height: 1.2;
+    letter-spacing: -0.4px;
+    margin: 0 0 18px;
+    font-weight: 700;
+  }
+  .deck {
+    font-size: 18px;
+    line-height: 1.5;
+    color: var(--ink-soft);
+    margin: 0 0 28px;
+    font-style: italic;
+  }
+  .byline {
+    font-size: 13px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 56px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--rule);
+  }
+  h2 {
+    font-size: 22px;
+    margin: 56px 0 14px;
+    font-weight: 700;
+    letter-spacing: -0.2px;
+  }
+  h2 .num {
+    color: var(--accent);
+    font-style: italic;
+    font-weight: 400;
+    margin-right: 10px;
+    font-size: 19px;
+  }
+  h3 {
+    font-size: 16px;
+    margin: 28px 0 10px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+  p { margin: 0 0 16px; }
+  p.lead::first-letter {
+    font-size: 48px; float: left;
+    line-height: 0.9; padding: 4px 6px 0 0;
+    font-weight: 700; color: var(--accent);
+  }
+  
+  em { font-style: italic; }
+  strong { font-weight: 700; }
+  
+  /* Pull-quote */
+  .callout {
+    border-left: 3px solid var(--accent);
+    padding: 4px 0 4px 20px;
+    margin: 28px 0;
+    font-size: 18px;
+    font-style: italic;
+    color: var(--ink-soft);
+  }
+  
+  /* Code/data block */
+  .terminal {
+    background: var(--code-bg);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    padding: 14px 18px;
+    margin: 14px 0;
+    font-family: "SF Mono", Monaco, Consolas, monospace;
+    font-size: 12.5px;
+    line-height: 1.65;
+    color: var(--ink);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .terminal .label {
+    color: var(--ink-faint);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    margin-bottom: 8px;
+    font-family: -apple-system, sans-serif;
+    font-weight: 600;
+  }
+  .terminal .key { color: #888; }
+  .terminal .val { color: var(--ink); }
+  .terminal .val.neg { color: var(--neg); font-weight: 600; }
+  .terminal .val.pos { color: var(--pos); font-weight: 600; }
+  .terminal .val.warn { color: var(--accent); font-weight: 600; }
+  
+  /* Failure case block (the heart of section III) */
+  .case-block {
+    background: white;
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    padding: 22px 26px;
+    margin: 28px 0;
+  }
+  .case-pattern-name {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--accent);
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .case-pattern-desc {
+    font-size: 14.5px;
+    color: var(--ink-soft);
+    margin-bottom: 14px;
+    font-style: italic;
+  }
+  .case-input {
+    font-family: -apple-system, "PingFang SC", sans-serif;
+    margin: 14px 0 6px;
+  }
+  .case-input-text {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--ink);
+    margin-bottom: 4px;
+  }
+  .case-input-context {
+    font-size: 13px;
+    color: var(--ink-faint);
+    font-style: italic;
+  }
+  .case-responses {
+    margin: 16px 0 0;
+    display: grid;
+    grid-template-columns: 90px 1fr;
+    gap: 10px 14px;
+    font-size: 13.5px;
+    align-items: start;
+  }
+  .case-responses .row-label {
+    font-size: 11px;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    font-weight: 600;
+    padding-top: 2px;
+    font-family: -apple-system, sans-serif;
+  }
+  .case-responses .row-content {
+    font-family: -apple-system, "PingFang SC", sans-serif;
+    color: var(--ink);
+  }
+  .case-responses .row-content code {
+    font-family: "SF Mono", Monaco, Consolas, monospace;
+    background: var(--code-bg);
+    padding: 1px 5px;
+    font-size: 12.5px;
+    border-radius: 2px;
+  }
+  .case-takeaway {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--rule);
+    font-size: 14px;
+    color: var(--ink-soft);
+    line-height: 1.55;
+  }
+  .case-takeaway::before {
+    content: "→ ";
+    color: var(--accent);
+    font-weight: 700;
+  }
+  
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    font-family: -apple-system, sans-serif;
+    font-size: 14px;
+  }
+  table th, table td {
+    text-align: left;
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--rule);
+  }
+  table th {
+    font-size: 11px;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    font-weight: 600;
+  }
+  table td.num {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    font-weight: 600;
+  }
+  table tr.winner td {
+    background: var(--hl);
+  }
+  
+  /* Heatmap */
+  .heatmap-wrap {
+    margin: 24px 0;
+    background: white;
+    border: 1px solid var(--rule);
+    padding: 22px 22px 18px;
+    border-radius: 2px;
+  }
+  .heatmap-legend {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 12px;
+    font-size: 11.5px;
+    color: var(--ink-soft);
+    flex-wrap: wrap;
+    font-family: -apple-system, sans-serif;
+  }
+  .legend-swatch {
+    display: inline-block;
+    width: 12px; height: 12px;
+    margin-right: 4px;
+    vertical-align: middle;
+    border: 1px solid var(--rule);
+  }
+  .heatmap {
+    display: grid;
+    grid-template-columns: 1fr 50px 50px 50px 50px;
+    gap: 0;
+    font-family: -apple-system, "PingFang SC", sans-serif;
+  }
+  .heatmap-row { display: contents; }
+  .heatmap-header {
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    color: var(--ink-faint);
+    text-align: center;
+    padding: 6px 4px;
+    font-weight: 600;
+  }
+  .heatmap-text {
+    padding: 3px 8px;
+    border-right: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+    color: var(--ink-soft);
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .heatmap-row.gt-sarc .heatmap-text {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .heatmap-row.gt-sarc .heatmap-text::before {
+    content: "·";
+    color: var(--accent);
+    font-weight: 700;
+    margin-right: 4px;
+  }
+  .heatmap-cell {
+    border-right: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+    text-align: center;
+    padding: 3px 0;
+    font-size: 11px;
+    color: white;
+    font-weight: 600;
+  }
+  .heatmap-cell.pos { background: #2c5f2d; }
+  .heatmap-cell.neg { background: #8b1a1a; }
+  .heatmap-cell.neu { background: #aaa; }
+  .heatmap-cell.none { background: #eee; color: var(--ink-faint); }
+  
+  /* Prompt-variant comparison */
+  .prompt-row {
+    background: white;
+    border: 1px solid var(--rule);
+    padding: 16px 22px;
+    margin: 10px 0;
+    border-radius: 2px;
+    display: grid;
+    grid-template-columns: 1fr 90px;
+    gap: 16px;
+    align-items: center;
+  }
+  .prompt-row.winner {
+    border-color: var(--accent);
+    border-width: 1.5px;
+    background: var(--accent-bg);
+  }
+  .prompt-row .pname {
+    font-size: 12px;
+    letter-spacing: 0.7px;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    font-weight: 700;
+    margin-bottom: 5px;
+    font-family: -apple-system, sans-serif;
+  }
+  .prompt-row.winner .pname { color: var(--accent); }
+  .prompt-row .ptext {
+    font-family: "SF Mono", Monaco, Consolas, monospace;
+    font-size: 12.5px;
+    color: var(--ink);
+    background: var(--paper);
+    padding: 7px 12px;
+    border-radius: 2px;
+    border: 1px solid var(--rule);
+    line-height: 1.5;
+  }
+  .prompt-row .pacc {
+    font-family: Charter, serif;
+    text-align: right;
+  }
+  .prompt-row .pacc .num {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+  .prompt-row.winner .pacc .num { color: var(--accent); }
+  .prompt-row .pacc .frac {
+    font-size: 11.5px;
+    color: var(--ink-faint);
+    margin-top: 4px;
+  }
+  
+  /* Proposal list */
+  .proposal {
+    background: white;
+    border-left: 3px solid var(--accent);
+    padding: 12px 18px 12px 20px;
+    margin: 14px 0;
+  }
+  .proposal-num {
+    font-size: 11px;
+    letter-spacing: 0.7px;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 700;
+    font-family: -apple-system, sans-serif;
+    margin-bottom: 4px;
+  }
+  .proposal-text {
+    font-size: 14.5px;
+    color: var(--ink);
+    line-height: 1.55;
+  }
+  .proposal-text em { color: var(--ink-soft); }
+  
+  /* Footer/method */
+  .meta {
+    margin-top: 80px;
+    padding-top: 28px;
+    border-top: 1px solid var(--rule);
+    font-size: 12.5px;
+    color: var(--ink-faint);
+    line-height: 1.65;
+  }
+  .meta p { margin: 8px 0; }
+  .meta strong { color: var(--ink-soft); }
+  .meta code {
+    background: var(--code-bg);
+    padding: 1px 5px;
+    border-radius: 2px;
+    font-size: 11.5px;
+    font-family: "SF Mono", Monaco, monospace;
+  }
+  
+  @media (max-width: 720px) {
+    .article { padding: 36px 18px 80px; }
+    h1 { font-size: 26px; }
+    .deck { font-size: 16px; }
+    .case-responses { grid-template-columns: 1fr; gap: 6px; }
+    .case-responses .row-label { padding-top: 8px; }
+    .heatmap { grid-template-columns: 1fr 40px 40px 40px 40px; }
+    .prompt-row { grid-template-columns: 1fr; }
+    .prompt-row .pacc { text-align: left; }
+  }
+</style>
+</head>
+<body>
+
+<div class="article">
+
+<h1>The 7-character problem in player chat</h1>
+<p class="deck">
+  Production sentiment and toxicity APIs make confidently wrong calls on short native-language UGC — the exact register most consumer chat moderation has to handle. I ran a controlled experiment on 2,500 short Chinese phrases and 10 English gaming-chat examples to find out how badly current systems fail, where the failures cluster, and which cheap interventions actually move the numbers. This is what I found, and what I'd ship next.
+</p>
+<div class="byline">A failure-mode investigation · Jayde · April 2026 · <a href="REPO_URL_PLACEHOLDER" style="color: var(--ink-soft); text-decoration: none; border-bottom: 1px solid var(--ink-faint);">code, traces, and 70-phrase test set on GitHub</a></div>
+
+
+<h2><span class="num">I.</span>The setup</h2>
+
+<p class="lead">
+A team chat post-match: <em>"GG ez."</em> Did the speaker mean it as good-game camaraderie, or as a taunt? The four words give you no way to tell. The interpretive community of the addressee — competitive ladder versus casual co-op — does. Production sentiment and toxicity APIs trained on global affective weights have to pick one polarity score. They pick the wrong one routinely on this kind of short, in-group, native-language input. And — this is the part that matters in production — they do not know that they have.
+</p>
+
+<p>
+Chat moderation, voice-to-text sentiment monitoring, in-game intent detection, livestream comment classification — all consumer products that touch short native-language user text — eventually have to deal with phrases under ten characters where the literal meaning and the speaker's actual intent come apart. <em>"挺好的"</em> can mean four different things. <em>"thanks for the carry"</em> can be sincere or a reverse-attribution insult. <em>"git gud scrub"</em> from a friend is bonding; from a stranger is hostile.
+</p>
+
+<p>
+I wanted to find out how badly current production systems fail on this kind of input, where the failures cluster, and what the cheapest interventions actually do. I ran the experiment in Chinese — because I have a 2,500-row meme corpus with four-field ground-truth annotations and the failure modes are sharp there — and added an English gaming-chat hero set as the cross-domain test. The Chinese corpus is the stress test. The gaming chat is what the patterns transfer to.
+</p>
+
+<p>
+The Chinese dataset is a 2,500-row corpus of internet meme usage records, each annotated by a separate pipeline along four dimensions: surface emotion, emotional function, tone, and the meme's actual community-grounded meaning. From that corpus I sampled a 60-phrase test set (every phrase ≤ 7 characters cleaned, stratified to 40 sarcastic / 20 non-sarcastic). The English gaming-chat set is ten phrases drawn from canonical post-match registers — taunts, mock-praise, performative bonding, and one sincere control: <em>GG ez · nice try teammate · what a play · git gud scrub · thanks for the carry · you good bro? · absolute cinema · +rep great teammate · no diff · well played</em>. Seventy phrases total.
+</p>
+
+<p>
+Three systems on the same inputs:
+</p>
+
+<ul>
+  <li><strong>SenticNet ZH</strong> — production sentence-level affective computing API, 14 output dimensions per call (polarity, intensity, emotions, four sentic dimensions, sarcasm flag, depression, toxicity, engagement, etc.).</li>
+  <li><strong>A keyword baseline</strong> — a hand-written list of Chinese irony markers (<em>行，</em>, <em>了吗?</em>, <em>古法</em>, <em>毒唯</em>, <em>老登</em>) plus a few token-level patterns. Twenty minutes of work, deliberately stupid, to anchor the floor.</li>
+  <li><strong>Claude Sonnet 4.5</strong> — zero-shot, asked to read each phrase and output structured JSON: literal meaning, likely intent, polarity, sarcasm boolean.</li>
+</ul>
+
+<p>
+For each system, I logged every API response in raw form and joined it back to the corpus's ground-truth annotations. 5,000 SenticNet calls (2,500 cases × two endpoints), plus the Claude pass on the 60-phrase subset.
+</p>
+
+<p>
+This is what fell out.
+</p>
+
+
+<h2><span class="num">II.</span>The numbers</h2>
+
+<p>
+Across the full 2,500-row corpus, SenticNet's <em>English</em> endpoint returned all-zero output on 99.8% of inputs. Same API, no error thrown — Chinese text in, neutral / no emotions / no sarcasm / zero everything out. A downstream pipeline trusting the response would silently downgrade every Chinese user to "no signal."
+</p>
+
+<div class="terminal">
+<span class="label">SenticNet EN endpoint · input: 我点了无糖奶茶，但加了三份奶盖。味儿不对。</span>
+<span class="key">polarity:</span>     <span class="val">NEUTRAL</span>
+<span class="key">intensity:</span>    <span class="val">0</span>
+<span class="key">emotions:</span>     <span class="val">No emotions detected</span>
+<span class="key">sarcasm:</span>      <span class="val">No sarcasm detected</span>
+<span class="key">toxicity:</span>     <span class="val">0%</span>
+<span class="key">depression:</span>   <span class="val">0%</span>
+</div>
+
+<p>
+Switching to <code>lang=zh</code> made things stranger. The Chinese endpoint crashed (HTTP 500) on 31.3% of requests — on inputs as ordinary as <em>"我刚看那人突然一口一个'严正声明'，像换了个人。 味儿不对了。"</em> Of the requests that didn't crash, another 24% returned all-zero output. Of the remaining 44.7% with non-zero responses, the <code>aspects</code> field was full of byte-level mojibake (<em>'ç¹', 'è¶', 'ä½'</em>) — UTF-8 bytes parsed as Latin-1 — meaning the model wasn't doing aspect extraction in any meaningful sense. It was hallucinating English-concept associations on garbage.
+</p>
+
+<p>
+Restricting to the 60-phrase test subset, here is the binary sarcasm-classification leaderboard:
+</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>System</th>
+      <th>n valid</th>
+      <th class="num">Accuracy</th>
+      <th class="num">Precision</th>
+      <th class="num">Recall</th>
+      <th class="num">F1</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>SenticNet ZH</td>
+      <td>40 / 60</td>
+      <td class="num">0.45</td>
+      <td class="num">1.00</td>
+      <td class="num">0.12</td>
+      <td class="num">0.21</td>
+    </tr>
+    <tr>
+      <td>Keyword baseline</td>
+      <td>60 / 60</td>
+      <td class="num">0.48</td>
+      <td class="num">0.67</td>
+      <td class="num">0.45</td>
+      <td class="num">0.54</td>
+    </tr>
+    <tr class="winner">
+      <td>Claude Sonnet 4.5 (zero-shot)</td>
+      <td>60 / 60</td>
+      <td class="num">0.73</td>
+      <td class="num">0.82</td>
+      <td class="num">0.78</td>
+      <td class="num">0.80</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>
+The line worth staring at is SenticNet's: <strong>precision 1.00, recall 0.12.</strong> When SenticNet does flag sarcasm, it is right. It only does so three times out of forty. The other thirty-seven sarcastic cases get a confident polarity score with no internal signal that the model is operating outside competence. This is the failure mode that matters in production. Not loud errors — quiet, confident, wrong outputs, no abstention signal.
+</p>
+
+<p>
+Per-phrase, every system on every case looks like this:
+</p>
+
+<div class="heatmap-wrap">
+  <div class="heatmap-legend">
+    <span><span class="legend-swatch" style="background:#2c5f2d"></span>positive</span>
+    <span><span class="legend-swatch" style="background:#8b1a1a"></span>negative</span>
+    <span><span class="legend-swatch" style="background:#aaa"></span>neutral</span>
+    <span><span class="legend-swatch" style="background:#eee"></span>no response</span>
+    <span style="margin-left:auto; color:var(--accent); font-weight:600;">· = sarcastic by ground truth</span>
+  </div>
+  <div class="heatmap" id="heatmap"></div>
+</div>
+
+<p>
+Two things jump out from the heatmap. First, SenticNet's leftmost column has a band of grey-white cells: the API gave no usable output on a third of cases. Second, Claude's column is the only one that consistently goes red on the dotted (sarcastic) rows — the only system catching that the surface words and the speaker's intent are diverging.
+</p>
+
+
+<h2><span class="num">III.</span>Five recurring failure patterns</h2>
+
+<p>
+The cases where Claude got it right and SenticNet didn't aren't random. Sorting through them by hand, five distinct structural patterns appear. Three transfer cleanly across languages and domains; one is Chinese-internet-specific; one is a stress test that doesn't transfer at all. The patterns are ordered below by how applicable they are to short-form English UGC moderation — the gaming-chat patterns first, the Chinese-specific ones at the end as a stress test.
+</p>
+
+
+<div class="case-block">
+  <div class="case-pattern-name">Pattern A — Reverse-attribution sarcasm</div>
+  <div class="case-pattern-desc">Praising the wrong person, ironically. Common in post-match player chat — Chinese and English alike.</div>
+  <div class="case-input">
+    <div class="case-input-text">"thanks for the carry"</div>
+    <div class="case-input-context">From the player who actually carried the team, addressed to the underperforming teammate</div>
+  </div>
+  <div class="case-responses">
+    <div class="row-label">SenticNet ZH</div>
+    <div class="row-content">English input — endpoint returns no usable response.</div>
+    <div class="row-label">Claude</div>
+    <div class="row-content">"Surface words are sincere thanks for being carried in a match. But the addressee is the player who underperformed — the speaker did the carrying. The polite frame is the burn." → <code>NEGATIVE</code>, sarcastic.</div>
+    <div class="row-label">Ground truth</div>
+    <div class="row-content">Reverse-attribution sarcasm — recurring across competitive multiplayer chat.</div>
+  </div>
+  <div class="case-takeaway">
+    The surface words are sincere thanks. The irony is in <em>who they are addressed to</em>. A toxicity API reading the message in isolation cannot detect this — the routing matters as much as the words. Same pattern surfaces in Chinese as <em>"夺样银笑幻"</em> (mock-praising someone you actually want to mock).
+  </div>
+</div>
+
+
+<div class="case-block">
+  <div class="case-pattern-name">Pattern B — Performative bro-hostility</div>
+  <div class="case-pattern-desc">Surface-hostile insults that are actually in-group bonding when context resolves the relationship.</div>
+  <div class="case-input">
+    <div class="case-input-text">"git gud scrub"</div>
+    <div class="case-input-context">Said by a veteran player to a newer player after the new player asked for help</div>
+  </div>
+  <div class="case-responses">
+    <div class="row-label">SenticNet ZH</div>
+    <div class="row-content">English input — no usable response.</div>
+    <div class="row-label">Claude (zero-shot)</div>
+    <div class="row-content"><code>NEGATIVE</code> · classified as insult. The literal words are derogatory.</div>
+    <div class="row-label">Claude (with context cue)</div>
+    <div class="row-content">"In gaming subculture this is performative bro-banter; literal hostility reframed as in-group bonding when in response to a help request." → <code>NEUTRAL</code>, not toxic.</div>
+    <div class="row-label">Ground truth</div>
+    <div class="row-content">Performative bonding — structurally inverted from its surface affect.</div>
+  </div>
+  <div class="case-takeaway">
+    Toxicity classifiers trained on neutral-domain corpora flag this as hostile. In gaming-chat domain, it is closer to a high-five. The fix is not a better classifier — it is a domain prior.
+  </div>
+</div>
+
+
+<div class="case-block">
+  <div class="case-pattern-name">Pattern C — Aestheticization deflection</div>
+  <div class="case-pattern-desc">Using a fashionable aesthetic word (氛围感, 故事感, 质感, 破碎感) to redescribe a flaw as a feature.</div>
+  <div class="case-input">
+    <div class="case-input-text">"那是氛围感滤镜"</div>
+    <div class="case-input-context">After someone points out a photo is blurry — context: 美化遮掩</div>
+  </div>
+  <div class="case-responses">
+    <div class="row-label">SenticNet ZH</div>
+    <div class="row-content"><code>POSITIVE</code> · intensity 89 · emotions: <em>enthusiasm 100%</em> · the positive aesthetic vocabulary dominated.</div>
+    <div class="row-label">Claude</div>
+    <div class="row-content">"Speaker is reframing a flaw (blurry) as an aesthetic choice (atmospheric filter). The praise is concession-shaped — it concedes the criticism by relabeling." → <code>NEGATIVE</code>, sarcastic.</div>
+    <div class="row-label">Ground truth</div>
+    <div class="row-content">阴阳嘲讽 · 化解尴尬 — performative aestheticization.</div>
+  </div>
+  <div class="case-takeaway">
+    The lexicon (<em>氛围感</em>) is positive. The pragmatic move is concession-shaped sarcasm. The model trained to sum word polarities cannot see the difference. <em>"what a play"</em> after a teammate's bad decision is the same structure in English — positive lexicon, ironic redescription.
+  </div>
+</div>
+
+
+<div class="case-block">
+  <div class="case-pattern-name">Pattern D — Mock-procedural challenge</div>
+  <div class="case-pattern-desc">Using bureaucratic / legal vocabulary to mock the authority of an unverified claim.</div>
+  <div class="case-input">
+    <div class="case-input-text">"你红头文件呢？"</div>
+    <div class="case-input-context">After the speaker asserts something with confidence — context: 反问质疑权威</div>
+  </div>
+  <div class="case-responses">
+    <div class="row-label">SenticNet ZH</div>
+    <div class="row-content"><code>NEUTRAL</code> · intensity 0 · sarcasm: <em>not detected</em> · model parsed it as a literal procedural question.</div>
+    <div class="row-label">Claude</div>
+    <div class="row-content">"This asks for a <em>red-header official document</em> — a mock-procedural reframe. Speaker is rejecting the previous claim by demanding bureaucratic backing it could not have." → <code>NEGATIVE</code>, sarcastic.</div>
+    <div class="row-label">Ground truth</div>
+    <div class="row-content">阴阳嘲讽 · 反制冒犯 — the procedural register itself is the joke.</div>
+  </div>
+  <div class="case-takeaway">
+    Surface words are a polite question. The whole structure performs concession-to-procedure as concession-shaped rebuke. Chinese-internet-specific, but the pattern (using a high-register vocabulary to mock a low-register claim) shows up in any mature online community.
+  </div>
+</div>
+
+
+<div class="case-block">
+  <div class="case-pattern-name">Pattern E — Compressed cultural reference</div>
+  <div class="case-pattern-desc">Three to five characters that activate a whole shared narrative — the most domain-specific and the hardest to transfer.</div>
+  <div class="case-input">
+    <div class="case-input-text">"氪不改命"</div>
+    <div class="case-input-context">After someone announces overconfidence — context: 黑色幽默泼冷水</div>
+  </div>
+  <div class="case-responses">
+    <div class="row-label">SenticNet ZH</div>
+    <div class="row-content"><code>POSITIVE</code> · intensity 96 · emotions: <em>enthusiasm 91.21%</em> · the model latched onto 氪 / 命 as positive-coded.</div>
+    <div class="row-label">Claude</div>
+    <div class="row-content">"<em>氪金</em> is gaming-microtransaction slang; <em>不改命</em> is a fatalistic deflation. Together: spending money won't change your fate. Used to puncture the previous overconfidence." → <code>NEGATIVE</code>, sarcastic.</div>
+    <div class="row-label">Ground truth</div>
+    <div class="row-content">戏谑调侃 · 影响决策 — fatalistic deflation of overconfidence.</div>
+  </div>
+  <div class="case-takeaway">
+    Without the gaming-slang anchor, every component word reads as neutral or positive. This is the pattern that <em>does not transfer</em> across domains — it lives or dies by the model's access to community-specific cultural references. Useful as a stress test for any model claiming domain robustness.
+  </div>
+</div>
+
+
+<h2><span class="num">IV.</span>Prompt variants on the same model</h2>
+
+<p>
+Section II already showed Claude is the strongest of the three baseline systems. The next experiment holds the model fixed and varies <em>only the prompt</em>, to see how much accuracy comes from the model versus how much comes from how it is asked. Same Claude Sonnet 4.5, four prompt variants, same 30-case hero subset (20 Chinese sarcastic + 5 Chinese non-sarcastic controls + 5 English gaming-chat):
+</p>
+
+<div class="prompt-row">
+  <div>
+    <div class="pname">Prompt A · Zero-shot binary</div>
+    <div class="ptext">"Is this sarcastic? Reply only yes or no."</div>
+  </div>
+  <div class="pacc"><div class="num">36.7%</div><div class="frac">11 / 30</div></div>
+</div>
+
+<div class="prompt-row">
+  <div>
+    <div class="pname">Prompt B · Chain of thought</div>
+    <div class="ptext">"Think step by step. (1) literal meaning? (2) likely intent? (3) is the gap ironic? Then answer."</div>
+  </div>
+  <div class="pacc"><div class="num">60.0%</div><div class="frac">18 / 30</div></div>
+</div>
+
+<div class="prompt-row winner">
+  <div>
+    <div class="pname">Prompt C · With context cue</div>
+    <div class="ptext">"This is a casual chat message in Chinese internet vernacular / online gaming. Is this sarcastic?"</div>
+  </div>
+  <div class="pacc"><div class="num">83.3%</div><div class="frac">25 / 30</div></div>
+</div>
+
+<div class="prompt-row">
+  <div>
+    <div class="pname">Prompt D · Persona-conditioned (gaming moderator)</div>
+    <div class="ptext">"You are reading post-match player chat. Players use ironic praise, mock-encouragement, and bro-bonding insults. Is this sincere or ironic?"</div>
+  </div>
+  <div class="pacc"><div class="num">46.7%</div><div class="frac">14 / 30</div></div>
+</div>
+
+<p>
+The cheapest improvement is also the most informative. Adding one sentence of context — <em>"this is Chinese internet vernacular / post-match player chat"</em> — moves Claude from 36.7% to 83.3% on this hero set. Chain-of-thought helps modestly. Persona conditioning helps only when the persona matches the input domain (gaming-chat persona reading gaming chat) and actively hurts when it does not (gaming persona reading Chinese memes — it imposes the wrong default register).
+</p>
+
+<p>
+The 17% the winning prompt still misses is not noise. Five cases were missed by all four prompts: <em>"对，你就那味儿"</em> (could be sincere recognition or ironic critique — depends on what came before), <em>"月亮不睡你不睡"</em> (humorous self-mock that's not strictly sarcastic), <em>"如何呢，又能怎"</em> (Lu-Xun-coded resignation, not sarcasm), <em>"直接失禁"</em> (hyperbolic reaction, ambiguous valence). These are the cases where even native speakers need turn-level context to disambiguate. They are the residual that prompt engineering cannot close.
+</p>
+
+<div class="callout">
+  This is the kind of result that is invisible without a controlled experiment. The win comes from context, not cleverer prompting. For a production chat moderator, this is one extra token in the system prompt — and a real ~85% ceiling beyond which prompt engineering does not help.
+</div>
+
+
+<h2><span class="num">V.</span>What I'd try next</h2>
+
+<p>
+Five things I would actually run if I were doing this for production rather than as a single-evening investigation:
+</p>
+
+<div class="proposal">
+  <div class="proposal-num">Proposal 1</div>
+  <div class="proposal-text">
+    <strong>Scale the test set 10×.</strong> 60 phrases is enough to surface failure patterns; it is not enough to commit to numbers. Annotate 200+ cases per failure pattern (1,000+ total) with at least two annotators per case, and report inter-annotator agreement (<em>kappa</em>) alongside model accuracy. The current numbers should be treated as directional, not as a benchmark.
+  </div>
+</div>
+
+<div class="proposal">
+  <div class="proposal-num">Proposal 2</div>
+  <div class="proposal-text">
+    <strong>Train a small classifier on top.</strong> Once the test set scales, fine-tune a lightweight head (small encoder + linear) on the five named failure patterns. Each pattern is structurally distinct; pattern-specific classifiers are likely to beat a single global sarcasm head, and they are cheap to deploy in parallel. Evaluate per-pattern, not just overall.
+  </div>
+</div>
+
+<div class="proposal">
+  <div class="proposal-num">Proposal 3</div>
+  <div class="proposal-text">
+    <strong>Make abstention first-class.</strong> Section IV's 17% residual is not a model problem — it is a problem of the system not knowing it is uncertain. Compute cross-system disagreement (run Claude and a cheap reader on every input; flag the high-disagreement cases for human review). The cost is one extra inference. The value is knowing which calls you should not have made.
+  </div>
+</div>
+
+<div class="proposal">
+  <div class="proposal-num">Proposal 4</div>
+  <div class="proposal-text">
+    <strong>Stratify by community, not just by language.</strong> Affective response to short text is reader-dependent the same way clicks are user-dependent. In gaming this is especially clean — competitive ranked, casual co-op, voice trash-talk, in-game friendly fire each have different default registers. Sample stratified by these segments and check whether per-segment classifiers outperform a global one. If the gains are real, a small lightweight head per segment is cheap to maintain at inference. <em>This is recommender-system machinery applied to register classification.</em>
+  </div>
+</div>
+
+<div class="proposal">
+  <div class="proposal-num">Proposal 5</div>
+  <div class="proposal-text">
+    <strong>Run the same evaluation on actual player-chat logs.</strong> Five English gaming-chat phrases is a sketch. The full version: sample 500 messages from voice-to-text or in-game text logs, label by hand for the five patterns above (especially A reverse-attribution, B performative bro-hostility, C aestheticization deflection), run the same three baselines and four prompt variants. <strong>Hypothesis</strong>: Patterns A, B, and C transfer cleanly to English gaming chat; Pattern D (mock-procedural) appears at low rate; Pattern E (compressed cultural reference) is replaced by gaming-specific equivalents (<em>"copium"</em>, <em>"diff"</em>, <em>"throw"</em>). If the hypothesis holds, the per-pattern classifier from Proposal 2 is the actual deliverable for any toxicity / sentiment monitor downstream of player chat.
+  </div>
+</div>
+
+
+<div class="meta">
+  <p>
+    <strong>Method.</strong> 60 short Chinese phrases (≤ 7 characters cleaned) sampled from a 2,500-row meme-usage corpus with four ground-truth annotation fields (surface emotion, emotional function, tone, current meaning); plus 10 English post-match player-chat phrases for cross-domain comparison. Sarcasm classification used the corpus's <code>tone</code> field, treating <em>阴阳嘲讽 / 戏谑调侃 / 自嘲卑微 / 反差感</em> as the positive class (40 of 60 Chinese; the leaderboard in Section II is computed on the Chinese subset since SenticNet ZH does not handle English input). Sample stratified to 40 sarcastic / 20 non-sarcastic.
+  </p>
+  <p>
+    <strong>Three systems.</strong> SenticNet ZH sentence-level API (<code>sentic.net/api/zh/</code>); Claude Sonnet 4.5 zero-shot with a structured-output prompt; a hand-written keyword baseline that flags lexical irony markers. Each system independently produces a polarity label and a sarcasm boolean. 5,000 SenticNet calls (2,500 cases × two endpoints), Claude pass on the 60-phrase subset.
+  </p>
+  <p>
+    <strong>Reproducibility.</strong> All API call traces, the 70-phrase test set with annotations, the keyword rule list, the four prompt variants tested in Section IV, the metric computation, and this page's source live in a single repository.
+  </p>
+  <p style="margin-top: 24px;">
+    Jayde · April 2026
+  </p>
+</div>
+
+</div>
+
+<script>
+const HEATMAP_DATA = [{"text": "行，嘚瑟上了", "ground_truth_sarcastic": true, "scenario": "吐槽突然摆谱的排场", "current_meaning": "用于以调侃口吻吐槽他人突然开始讲排面摆谱端架子的行为", "claude": {"sentiment_polarity": "negative", "sentiment_confidence": 0.75, "is_sarcastic": true, "sarcasm_confidence": 0.9, "literal_meaning": "行，开始嘚瑟了。", "likely_intent": "讽刺对方突然摆谱、得意起来", "ambiguity_note": null}, "senticnet_zh": {"_error": "all_crashed_or_zero"}, "keyword": {"is_sarcastic": true, "matched_markers": ["行，", "嘚瑟"], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": null, "keyword": -1.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": null, "keyword": true}, "polarity_disagreement_std": 0.0, "polarity_range": 0.0, "sarcasm_disagreement": false}, {"text": "行，能打十一个", "ground_truth_sarcastic": true, "scenario": "加码调侃过度自信", "current_meaning": "用于用夸张式附和来反讽对方过度自信或吹得太过", "claude": {"sentiment_polarity": "negative", "sentiment_confidence": 0.7, "is_sarcastic": true, "sarcasm_confidence": 0.85, "literal_meaning": "行，你能打十一个人。", "likely_intent": "化用叶问梗，讽刺对方过度自信、吹牛", "ambiguity_note": null}, "senticnet_zh": {"polarity": "NEGATIVE", "intensity": 89.0, "emotions": "grief (100%) & terror (100%)", "sarcasm": "No sarcasm detected", "depression": 83.33, "toxicity": 50.0}, "keyword": {"is_sarcastic": true, "matched_markers": ["行，"], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": -1.0, "keyword": -1.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": false, "keyword": true}, "polarity_disagreement_std": 0.0, "polarity_range": 0.0, "sarcasm_disagreement": true}, {"text": "主播你屏幕黑了", "ground_truth_sarcastic": true, "scenario": "打断尴尬沉默转移注意", "current_meaning": "用熟悉的报信式玩梗来打断尴尬沉默，转移注意力并缓和氛围。", "claude": {"sentiment_polarity": "neutral", "sentiment_confidence": 0.55, "is_sarcastic": true, "sarcasm_confidence": 0.6, "literal_meaning": "主播，你的屏幕变黑了。", "likely_intent": "直播弹幕梗,假装提醒主播屏幕异常以制造尴尬或转移注意", "ambiguity_note": "脱离直播弹幕语境会显得只是字面提醒"}, "senticnet_zh": {"polarity": "POSITIVE", "intensity": 42.0, "emotions": "enthusiasm (53.03%) & joy (76.97%)", "sarcasm": "No sarcasm detected", "depression": 0.0, "toxicity": 0.0}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": 0.0, "senticnet_zh": 1.0, "keyword": 0.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": false, "keyword": false}, "polarity_disagreement_std": 0.577, "polarity_range": 1.0, "sarcasm_disagreement": true}, {"text": "你这毒唯警告", "ground_truth_sarcastic": true, "scenario": "抛出警告式调侃排他心态", "current_meaning": "用于调侃对方的排他心态很强，像是在对外提前发出警告。", "claude": {"sentiment_polarity": "negative", "sentiment_confidence": 0.7, "is_sarcastic": true, "sarcasm_confidence": 0.8, "literal_meaning": "你这是毒唯（极端排他粉丝）警告。", "likely_intent": "调侃对方说话像极端粉丝、有排他性,带玩笑式批评", "ambiguity_note": null}, "senticnet_zh": {"polarity": "NEGATIVE", "intensity": 77.0, "emotions": "grief (79.39%) & loathing (32.42%)", "sarcasm": "Sarcasm detected (77%)", "depression": 50.0, "toxicity": 16.67}, "keyword": {"is_sarcastic": true, "matched_markers": ["毒唯"], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": -1.0, "keyword": -1.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": true, "keyword": true}, "polarity_disagreement_std": 0.0, "polarity_range": 0.0, "sarcasm_disagreement": false}, {"text": "对，你就那味儿", "ground_truth_sarcastic": true, "scenario": "认可对方描述的感觉精准到位时附和", "current_meaning": "用于盖章式认可某种整体氛围或感觉很到位，表示高度还原或非常符合预期", "claude": {"sentiment_polarity": "neutral", "sentiment_confidence": 0.5, "is_sarcastic": false, "sarcasm_confidence": 0.45, "literal_meaning": "对,你就是那种感觉/调调。", "likely_intent": "认可对方描述的感觉很到位,也可能是反讽对方有某种贬义味道", "ambiguity_note": "这句话非常依赖语境——可以是真心赞美'对味'也可以是讽刺'有那个味儿'"}, "senticnet_zh": {"polarity": "POSITIVE", "intensity": 96.0, "emotions": "delight (92.12%)", "sarcasm": "No sarcasm detected", "depression": 0.0, "toxicity": 0.0}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": 0.0, "senticnet_zh": 1.0, "keyword": 0.0}, "sarcasm_predictions": {"claude": false, "senticnet_zh": false, "keyword": false}, "polarity_disagreement_std": 0.577, "polarity_range": 1.0, "sarcasm_disagreement": false}, {"text": "山东蓝翔挖掘机", "ground_truth_sarcastic": true, "scenario": "发现对方记不清老广告时补全经典内容呼应", "current_meaning": "用经典广告口播式台词接话和补全对方记忆，用熟悉的梗制造幽默感并快速拉近同频氛围", "claude": {"sentiment_polarity": "neutral", "sentiment_confidence": 0.5, "is_sarcastic": true, "sarcasm_confidence": 0.55, "literal_meaning": "山东蓝翔技校的挖掘机专业。", "likely_intent": "引用经典土味广告梗,玩梗式吐槽或附和", "ambiguity_note": "脱离梗文化语境会显得是字面引用"}, "senticnet_zh": {"_error": "all_crashed_or_zero"}, "keyword": {"is_sarcastic": true, "matched_markers": ["蓝翔"], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": 0.0, "senticnet_zh": null, "keyword": -1.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": null, "keyword": true}, "polarity_disagreement_std": 0.707, "polarity_range": 1.0, "sarcasm_disagreement": false}, {"text": "你已判无妻图行", "ground_truth_sarcastic": true, "scenario": "调侃对方聊天笨拙恐陷入单身窘境", "current_meaning": null, "claude": {"sentiment_polarity": "negative", "sentiment_confidence": 0.7, "is_sarcastic": true, "sarcasm_confidence": 0.85, "literal_meaning": "你已被判定终身无妻、不能行动(谐音判决书)。", "likely_intent": "用法律判决格式调侃对方聊天笨拙、注定单身", "ambiguity_note": null}, "senticnet_zh": {"polarity": "NEGATIVE", "intensity": 85.0, "emotions": "grief (81.52%) & rage (64.55%)", "sarcasm": "No sarcasm detected", "depression": 16.67, "toxicity": 0.0}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": -1.0, "keyword": 0.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": false, "keyword": false}, "polarity_disagreement_std": 0.577, "polarity_range": 1.0, "sarcasm_disagreement": true}, {"text": "懂了，古法转发", "ground_truth_sarcastic": true, "scenario": "把内容改头换面再发出", "current_meaning": "用于调侃或表示把原内容手动改写重组后再发布，以继续传播同时避免直接按原样或按模板转发", "claude": {"sentiment_polarity": "negative", "sentiment_confidence": 0.6, "is_sarcastic": true, "sarcasm_confidence": 0.85, "literal_meaning": "明白了,用'古法'(改头换面)的方式转发。", "likely_intent": "讽刺对方把内容稍作改动后当成原创发", "ambiguity_note": null}, "senticnet_zh": {"_error": "all_crashed_or_zero"}, "keyword": {"is_sarcastic": true, "matched_markers": ["懂了", "古法"], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": null, "keyword": -1.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": null, "keyword": true}, "polarity_disagreement_std": 0.0, "polarity_range": 0.0, "sarcasm_disagreement": false}, {"text": "你红头文件呢？", "ground_truth_sarcastic": true, "scenario": "反问依据要求出示正式文件", "current_meaning": "用于质疑对方提出的要求或规定缺乏正式依据，以嘲讽和不服的方式回怼对方不要把随口一说当成硬性规定", "claude": {"sentiment_polarity": "negative", "sentiment_confidence": 0.7, "is_sarcastic": true, "sarcasm_confidence": 0.9, "literal_meaning": "你的红头文件(正式公文)在哪里?", "likely_intent": "用官僚程序词反问对方,讽刺其下定论缺乏权威依据", "ambiguity_note": null}, "senticnet_zh": {"_error": "all_crashed_or_zero"}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": null, "keyword": 0.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": null, "keyword": false}, "polarity_disagreement_std": 0.707, "polarity_range": 1.0, "sarcasm_disagreement": true}, {"text": "你俩原地结婚吧", "ground_truth_sarcastic": true, "scenario": "夸张催促关系立刻升级", "current_meaning": "用于调侃两人关系甜到像可以直接结婚，用夸张口吻表达强烈认同和祝福", "claude": {"sentiment_polarity": "neutral", "sentiment_confidence": 0.55, "is_sarcastic": false, "sarcasm_confidence": 0.5, "literal_meaning": "你们两个就地结婚吧。", "likely_intent": "夸张催促两个人关系升级,调侃他们互动太甜或太契合", "ambiguity_note": "可以是真心起哄也可以是讽刺关系做作"}, "senticnet_zh": {"polarity": "POSITIVE", "intensity": 80.0, "emotions": "bliss (91.82%) & enthusiasm (73.94%)", "sarcasm": "No sarcasm detected", "depression": 0.0, "toxicity": 0.0}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": 0.0, "senticnet_zh": 1.0, "keyword": 0.0}, "sarcasm_predictions": {"claude": false, "senticnet_zh": false, "keyword": false}, "polarity_disagreement_std": 0.577, "polarity_range": 1.0, "sarcasm_disagreement": false}, {"text": "夺样银笑幻", "ground_truth_sarcastic": true, "scenario": "阴阳夸赞装腔摆谱", "current_meaning": "用于以冷淡讽刺的语气拆穿他人装腔作势和摆谱的行为", "claude": {"sentiment_polarity": "neutral", "sentiment_confidence": 0.4, "is_sarcastic": true, "sarcasm_confidence": 0.5, "literal_meaning": "(谐音不清,可能是'多么银笑换'或方言表达)", "likely_intent": "看起来是用谐音/方言阴阳调侃某种装腔做派", "ambiguity_note": "字面无法 parse,需要 native speaker 的梗识别才能确认"}, "senticnet_zh": {"polarity": "POSITIVE", "intensity": 43.0, "emotions": "joy (67.88%) & calmness (52.12%)", "sarcasm": "No sarcasm detected", "depression": 0.0, "toxicity": 0.0}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": 0.0, "senticnet_zh": 1.0, "keyword": 0.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": false, "keyword": false}, "polarity_disagreement_std": 0.577, "polarity_range": 1.0, "sarcasm_disagreement": true}, {"text": "你真係仆街喇", "ground_truth_sarcastic": true, "scenario": "起哄调侃大型翻车", "current_meaning": "用于在他人明显翻车或出糗时带点幸灾乐祸地吐槽嘲笑并点明其失误", "claude": {"sentiment_polarity": "negative", "sentiment_confidence": 0.65, "is_sarcastic": true, "sarcasm_confidence": 0.7, "literal_meaning": "你真的是死翘翘了(粤语)。", "likely_intent": "用粤语脏话调侃对方完蛋了/翻车了,带玩笑性质", "ambiguity_note": "粤语,严重程度依赖语境(朋友间是开玩笑,陌生人是真骂)"}, "senticnet_zh": {"_error": "all_crashed_or_zero"}, "keyword": {"is_sarcastic": true, "matched_markers": ["你真"], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": null, "keyword": -1.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": null, "keyword": true}, "polarity_disagreement_std": 0.0, "polarity_range": 0.0, "sarcasm_disagreement": false}, {"text": "主播别回头啊", "ground_truth_sarcastic": true, "scenario": "起哄加码营造恐怖氛围", "current_meaning": "用于在明知对方在整活的情况下继续起哄拱火，推动对方把氛围做得更刺激并逼出更大反应", "claude": {"sentiment_polarity": "neutral", "sentiment_confidence": 0.55, "is_sarcastic": true, "sarcasm_confidence": 0.6, "literal_meaning": "主播,你别回头。", "likely_intent": "直播间起哄梗,假装制造背后有恐怖东西的氛围", "ambiguity_note": "脱离直播语境会显得是真实警告"}, "senticnet_zh": {"polarity": "NEGATIVE", "intensity": 62.0, "emotions": "loathing (93.64%) & fear (99.7%)", "sarcasm": "No sarcasm detected", "depression": 50.0, "toxicity": 66.67}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": 0.0, "senticnet_zh": -1.0, "keyword": 0.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": false, "keyword": false}, "polarity_disagreement_std": 0.577, "polarity_range": 1.0, "sarcasm_disagreement": true}, {"text": "米黑收收味", "ground_truth_sarcastic": true, "scenario": "回怼压住争吵火药味", "current_meaning": null, "claude": {"sentiment_polarity": "negative", "sentiment_confidence": 0.7, "is_sarcastic": false, "sarcasm_confidence": 0.4, "literal_meaning": "米家黑粉收敛一下味道(指攻击性)。", "likely_intent": "直接劝某品牌的黑粉降低攻击性,带不耐烦", "ambiguity_note": null}, "senticnet_zh": {"polarity": "NEUTRAL", "intensity": 0.0, "emotions": "No emotions detected", "sarcasm": "No sarcasm detected", "depression": 0.0, "toxicity": 0.0}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": 0.0, "keyword": 0.0}, "sarcasm_predictions": {"claude": false, "senticnet_zh": false, "keyword": false}, "polarity_disagreement_std": 0.577, "polarity_range": 1.0, "sarcasm_disagreement": false}, {"text": "红k锻造", "ground_truth_sarcastic": true, "scenario": "盖章认定品质硬得离谱", "current_meaning": "用于对某个成果或成品的质量与强度进行夸张式认证和吹捧，表达含金量很高、水平顶尖。", "claude": {"sentiment_polarity": "positive", "sentiment_confidence": 0.6, "is_sarcastic": true, "sarcasm_confidence": 0.65, "literal_meaning": "红色 K 级品质锻造(游戏装备品质)。", "likely_intent": "用游戏品质术语夸张盖章某事物质量硬,带玩笑", "ambiguity_note": "脱离游戏文化语境会失去全部梗义"}, "senticnet_zh": {"_error": "all_crashed_or_zero"}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": 1.0, "senticnet_zh": null, "keyword": 0.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": null, "keyword": false}, "polarity_disagreement_std": 0.707, "polarity_range": 1.0, "sarcasm_disagreement": true}, {"text": "设计黑暗料理", "ground_truth_sarcastic": true, "scenario": "用一句话嘲笑审美翻车", "current_meaning": "用黑暗料理类比审美或视觉效果的混乱失败，以简短刻薄的方式表达嫌弃与嘲讽", "claude": {"sentiment_polarity": "negative", "sentiment_confidence": 0.75, "is_sarcastic": true, "sarcasm_confidence": 0.8, "literal_meaning": "设计是黑暗料理(指难看/失败)。", "likely_intent": "嘲笑某设计审美失败/翻车", "ambiguity_note": null}, "senticnet_zh": {"polarity": "POSITIVE", "intensity": 59.0, "emotions": "pleasantness (80.3%)", "sarcasm": "No sarcasm detected", "depression": 0.0, "toxicity": 0.0}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": 1.0, "keyword": 0.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": false, "keyword": false}, "polarity_disagreement_std": 1.0, "polarity_range": 2.0, "sarcasm_disagreement": true}, {"text": "那是氛围感滤镜", "ground_truth_sarcastic": true, "scenario": "搪塞反差质疑", "current_meaning": "用于把现实与呈现的反差归因于滤镜和氛围营造，以自嘲或敷衍的方式化解质疑。", "claude": {"sentiment_polarity": "negative", "sentiment_confidence": 0.65, "is_sarcastic": true, "sarcasm_confidence": 0.85, "literal_meaning": "那是氛围感滤镜(掩盖真实问题的美化)。", "likely_intent": "用'氛围感'这个流行词反讽对方在用美化语言搪塞质疑", "ambiguity_note": null}, "senticnet_zh": {"polarity": "POSITIVE", "intensity": 64.0, "emotions": "delight (68.33%) & ecstasy (68.18%)", "sarcasm": "No sarcasm detected", "depression": 0.0, "toxicity": 0.0}, "keyword": {"is_sarcastic": true, "matched_markers": ["氛围感"], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": 1.0, "keyword": -1.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": false, "keyword": true}, "polarity_disagreement_std": 1.155, "polarity_range": 2.0, "sarcasm_disagreement": true}, {"text": "我可点，来", "ground_truth_sarcastic": true, "scenario": "接过话头开始锐评", "current_meaning": "表示评价欲上来，准备快速下判断并给出犀利评论", "claude": {"sentiment_polarity": "negative", "sentiment_confidence": 0.7, "is_sarcastic": true, "sarcasm_confidence": 0.85, "literal_meaning": "我可以开始评点了,来吧。", "likely_intent": "表面应承实则准备开锐评/拆台", "ambiguity_note": null}, "senticnet_zh": {"polarity": "POSITIVE", "intensity": 34.0, "emotions": "joy (61.21%) & acceptance (99.32%)", "sarcasm": "No sarcasm detected", "depression": 0.0, "toxicity": 0.0}, "keyword": {"is_sarcastic": true, "matched_markers": ["我可点"], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": 1.0, "keyword": -1.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": false, "keyword": true}, "polarity_disagreement_std": 1.155, "polarity_range": 2.0, "sarcasm_disagreement": true}, {"text": "月亮不睡你不睡", "ground_truth_sarcastic": true, "scenario": "吐槽把熬夜当成理所当然", "current_meaning": "用于调侃把不睡觉和拖延入睡合理化，带有自嘲和揶揄意味", "claude": {"sentiment_polarity": "positive", "sentiment_confidence": 0.5, "is_sarcastic": false, "sarcasm_confidence": 0.4, "literal_meaning": "月亮没睡,你也没睡。", "likely_intent": "调侃对方熬夜,带亲昵或自嘲", "ambiguity_note": "近年抖音/小红书梗,可被读作浪漫陪伴或熬夜借口"}, "senticnet_zh": {"polarity": "POSITIVE", "intensity": 98.0, "emotions": "enthusiasm (97.27%)", "sarcasm": "No sarcasm detected", "depression": 0.0, "toxicity": 0.0}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": 1.0, "senticnet_zh": 1.0, "keyword": 0.0}, "sarcasm_predictions": {"claude": false, "senticnet_zh": false, "keyword": false}, "polarity_disagreement_std": 0.577, "polarity_range": 1.0, "sarcasm_disagreement": false}, {"text": "摊手", "ground_truth_sarcastic": true, "scenario": "用反讽式淡定化解尴尬", "current_meaning": "用假装淡定和轻微反讽来缓和尴尬气氛，暗示事情到此为止不要继续追问。", "claude": {"sentiment_polarity": "neutral", "sentiment_confidence": 0.55, "is_sarcastic": false, "sarcasm_confidence": 0.4, "literal_meaning": "(动作)摊开双手。", "likely_intent": "用文字描述肢体动作表达无奈/无可奈何", "ambiguity_note": "可以是真无奈也可以是反讽式假装无奈"}, "senticnet_zh": {"polarity": "NEGATIVE", "intensity": 52.0, "emotions": "loathing (26.97%) & sadness (89.09%)", "sarcasm": "No sarcasm detected", "depression": 83.33, "toxicity": 66.67}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": 0.0, "senticnet_zh": -1.0, "keyword": 0.0}, "sarcasm_predictions": {"claude": false, "senticnet_zh": false, "keyword": false}, "polarity_disagreement_std": 0.577, "polarity_range": 1.0, "sarcasm_disagreement": false}, {"text": "你在搞莫狮？", "ground_truth_sarcastic": true, "scenario": "用方言反问吐槽对方的夸张自夸行为", "current_meaning": "用带方言味的反问来表达对他人离谱言行的震惊与吐槽", "claude": {"sentiment_polarity": "negative", "sentiment_confidence": 0.55, "is_sarcastic": true, "sarcasm_confidence": 0.6, "literal_meaning": "你在做什么?(谐音/方言)", "likely_intent": "用方言谐音质疑/调侃对方在干嘛", "ambiguity_note": "可能是粤语或方言谐音,需要梗识别"}, "senticnet_zh": {"_error": "all_crashed_or_zero"}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": null, "keyword": 0.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": null, "keyword": false}, "polarity_disagreement_std": 0.707, "polarity_range": 1.0, "sarcasm_disagreement": true}, {"text": "行，逆属性大师", "ground_truth_sarcastic": true, "scenario": "给硬打劣势局盖章吹捧", "current_meaning": "用半夸半调侃的方式称赞对方明知处于劣势仍选择硬上，表达佩服同时带点吐槽", "claude": {"sentiment_polarity": "negative", "sentiment_confidence": 0.7, "is_sarcastic": true, "sarcasm_confidence": 0.9, "literal_meaning": "行,你这个逆属性大师。", "likely_intent": "讽刺对方说话/做事总是反着来或挑反方向", "ambiguity_note": null}, "senticnet_zh": {"_error": "all_crashed_or_zero"}, "keyword": {"is_sarcastic": true, "matched_markers": ["行，"], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": null, "keyword": -1.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": null, "keyword": true}, "polarity_disagreement_std": 0.0, "polarity_range": 0.0, "sarcasm_disagreement": false}, {"text": "行，婊翻世界", "ground_truth_sarcastic": true, "scenario": "用阴阳语气盖章毒舌状态", "current_meaning": "用于用阴阳嘲讽的口吻认可对方毒舌开喷的态度 带有围观式的冷幽默", "claude": {"sentiment_polarity": "negative", "sentiment_confidence": 0.7, "is_sarcastic": true, "sarcasm_confidence": 0.85, "literal_meaning": "行,你婊气满满地翻天覆地。", "likely_intent": "讽刺对方装腔/绿茶式表演已经无敌", "ambiguity_note": null}, "senticnet_zh": {"_error": "all_crashed_or_zero"}, "keyword": {"is_sarcastic": true, "matched_markers": ["行，", "婊"], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": null, "keyword": -1.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": null, "keyword": true}, "polarity_disagreement_std": 0.0, "polarity_range": 0.0, "sarcasm_disagreement": false}, {"text": "典中典老登电影", "ground_truth_sarcastic": true, "scenario": "调侃宏大庄严叙事过度", "current_meaning": "用于以调侃口吻指出作品叙事与审美过于套路和老派，表达不耐烦、轻视或反感。", "claude": {"sentiment_polarity": "negative", "sentiment_confidence": 0.7, "is_sarcastic": true, "sarcasm_confidence": 0.85, "literal_meaning": "典型中的典型老男人电影。", "likely_intent": "嘲讽某电影是中老年男性视角的陈词滥调", "ambiguity_note": "需要识别 B 站'典/老登'两个网络词"}, "senticnet_zh": {"polarity": "POSITIVE", "intensity": 61.0, "emotions": "enthusiasm (68.18%) & ecstasy (61.44%)", "sarcasm": "No sarcasm detected", "depression": 0.0, "toxicity": 0.0}, "keyword": {"is_sarcastic": true, "matched_markers": ["典", "老登"], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": 1.0, "keyword": -1.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": false, "keyword": true}, "polarity_disagreement_std": 1.155, "polarity_range": 2.0, "sarcasm_disagreement": true}, {"text": "这也能爷孙恋？", "ground_truth_sarcastic": true, "scenario": "用反问质疑年龄差设定", "current_meaning": "用反问吐槽不合理或夸张的年龄差恋爱关系设定，表达震惊与不适，并制造尴尬的幽默效果", "claude": {"sentiment_polarity": "negative", "sentiment_confidence": 0.7, "is_sarcastic": true, "sarcasm_confidence": 0.8, "literal_meaning": "这也能算爷孙恋?", "likely_intent": "讽刺/吐槽某段年龄差很大的关系", "ambiguity_note": null}, "senticnet_zh": {"_error": "all_crashed_or_zero"}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": null, "keyword": 0.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": null, "keyword": false}, "polarity_disagreement_std": 0.707, "polarity_range": 1.0, "sarcasm_disagreement": true}, {"text": "踢到裆预定", "ground_truth_sarcastic": true, "scenario": "调侃危险动作即将翻车", "current_meaning": "用于夸张式起哄和调侃，预判对方的危险操作大概率会翻车并以痛苦或尴尬的结果收场。", "claude": {"sentiment_polarity": "negative", "sentiment_confidence": 0.65, "is_sarcastic": true, "sarcasm_confidence": 0.75, "literal_meaning": "已经预定了被踢到裆部。", "likely_intent": "调侃对方做事/动作笨拙必然出糗", "ambiguity_note": null}, "senticnet_zh": {"polarity": "POSITIVE", "intensity": 63.0, "emotions": "ecstasy (76.29%) & enthusiasm (54.7%)", "sarcasm": "No sarcasm detected", "depression": 0.0, "toxicity": 0.0}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": 1.0, "keyword": 0.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": false, "keyword": false}, "polarity_disagreement_std": 1.0, "polarity_range": 2.0, "sarcasm_disagreement": true}, {"text": "叶问扭头笑", "ground_truth_sarcastic": true, "scenario": "发现对方自吹自擂时用含蓄暗讽回应", "current_meaning": "用带有懂的都懂的回头笑来表达心知肚明的轻微嘲讽和我知道但先不戳破的态度", "claude": {"sentiment_polarity": "negative", "sentiment_confidence": 0.6, "is_sarcastic": true, "sarcasm_confidence": 0.75, "literal_meaning": "叶问扭头笑(电影画面梗)。", "likely_intent": "用叶问看不上对手的画面调侃对方过于自信", "ambiguity_note": "需要识别叶问表情包梗"}, "senticnet_zh": {"polarity": "POSITIVE", "intensity": 85.0, "emotions": "ecstasy (81.06%) & delight (49.39%)", "sarcasm": "No sarcasm detected", "depression": 0.0, "toxicity": 0.0}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": 1.0, "keyword": 0.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": false, "keyword": false}, "polarity_disagreement_std": 1.0, "polarity_range": 2.0, "sarcasm_disagreement": true}, {"text": "死了个人", "ground_truth_sarcastic": true, "scenario": "厌烦对方反复追问时用冷硬表述终止对话", "current_meaning": "用极度冷淡的重大事实式表述作为回应，制造反差黑色幽默，并强行中止对话", "claude": {"sentiment_polarity": "negative", "sentiment_confidence": 0.5, "is_sarcastic": false, "sarcasm_confidence": 0.4, "literal_meaning": "死了一个人。", "likely_intent": "字面陈述死亡;也可能是网络夸张说法'笑死了'的省略", "ambiguity_note": "极度依赖语境——可以是严重事件也可以是'笑死/无语死'的省略"}, "senticnet_zh": {"_error": "all_crashed_or_zero"}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": null, "keyword": 0.0}, "sarcasm_predictions": {"claude": false, "senticnet_zh": null, "keyword": false}, "polarity_disagreement_std": 0.707, "polarity_range": 1.0, "sarcasm_disagreement": false}, {"text": "氪不改命", "ground_truth_sarcastic": true, "scenario": "用黑色幽默泼冷水", "current_meaning": "用宿命论式的黑色幽默否定过度自信，表达对充值也未必能换来想要结果的无奈吐槽", "claude": {"sentiment_polarity": "negative", "sentiment_confidence": 0.65, "is_sarcastic": true, "sarcasm_confidence": 0.7, "literal_meaning": "充钱(氪金)也改变不了命运。", "likely_intent": "用游戏氪金术语+宿命论,泼冷水否定对方的过度自信", "ambiguity_note": "需要识别'氪金'梗,否则字面只是宿命论"}, "senticnet_zh": {"polarity": "POSITIVE", "intensity": 96.0, "emotions": "enthusiasm (91.21%)", "sarcasm": "No sarcasm detected", "depression": 0.0, "toxicity": 0.0}, "keyword": {"is_sarcastic": true, "matched_markers": ["氪"], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": 1.0, "keyword": -1.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": false, "keyword": true}, "polarity_disagreement_std": 1.155, "polarity_range": 2.0, "sarcasm_disagreement": true}, {"text": "这拉扯感，谁懂", "ground_truth_sarcastic": true, "scenario": "起哄盖章若即若离氛围", "current_meaning": "用于点破暧昧推拉的张力并顺势起哄助攻", "claude": {"sentiment_polarity": "neutral", "sentiment_confidence": 0.55, "is_sarcastic": false, "sarcasm_confidence": 0.4, "literal_meaning": "这种相互拉扯的感觉,谁能理解。", "likely_intent": "感慨某种 ambiguous 关系/局面里的纠结情绪", "ambiguity_note": "小红书/微博常用,寻求共鸣"}, "senticnet_zh": {"_error": "all_crashed_or_zero"}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": 0.0, "senticnet_zh": null, "keyword": 0.0}, "sarcasm_predictions": {"claude": false, "senticnet_zh": null, "keyword": false}, "polarity_disagreement_std": 0.0, "polarity_range": 0.0, "sarcasm_disagreement": false}, {"text": "别找了，来房间", "ground_truth_sarcastic": true, "scenario": "招呼进语音房继续开黑", "current_meaning": "用于招呼他人进入同一语音或组队空间继续游戏，并用夸张戏谑的召唤感增强搞笑效果", "claude": {"sentiment_polarity": "neutral", "sentiment_confidence": 0.5, "is_sarcastic": false, "sarcasm_confidence": 0.35, "literal_meaning": "不要找了,来(直播)房间。", "likely_intent": "直播间引流话术或对粉丝的招呼", "ambiguity_note": "脱离直播语境可能被误读为暧昧或诱导"}, "senticnet_zh": {"polarity": "POSITIVE", "intensity": 55.0, "emotions": "enthusiasm (85.15%) & serenity (53.33%)", "sarcasm": "No sarcasm detected", "depression": 0.0, "toxicity": 0.0}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": 0.0, "senticnet_zh": 1.0, "keyword": 0.0}, "sarcasm_predictions": {"claude": false, "senticnet_zh": false, "keyword": false}, "polarity_disagreement_std": 0.577, "polarity_range": 1.0, "sarcasm_disagreement": false}, {"text": "老登发言", "ground_truth_sarcastic": true, "scenario": "察觉对方输出爹味说教时直白回怼", "current_meaning": "用于快速将对方的说教式观点归类为爹味或过时表达，并以简短吐槽完成否定和回击", "claude": {"sentiment_polarity": "negative", "sentiment_confidence": 0.75, "is_sarcastic": true, "sarcasm_confidence": 0.85, "literal_meaning": "中老年男性的发言。", "likely_intent": "讽刺某发言是过时/油腻/爹味的中年男性视角", "ambiguity_note": "需识别'老登'是 B 站近年贬义词"}, "senticnet_zh": {"_error": "all_crashed_or_zero"}, "keyword": {"is_sarcastic": true, "matched_markers": ["老登"], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": null, "keyword": -1.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": null, "keyword": true}, "polarity_disagreement_std": 0.0, "polarity_range": 0.0, "sarcasm_disagreement": false}, {"text": "回啊，千玺开炮", "ground_truth_sarcastic": true, "scenario": "起哄催促当场开喷回怼", "current_meaning": "用于起哄拱火式地催人立刻开喷回怼，把克制忍耐转为强硬反击并强化戏剧效果", "claude": {"sentiment_polarity": "negative", "sentiment_confidence": 0.65, "is_sarcastic": true, "sarcasm_confidence": 0.75, "literal_meaning": "回应啊,千玺开炮(指引爆/开喷)。", "likely_intent": "起哄式煽动对方反击/开喷", "ambiguity_note": "需要识别'千玺开炮'是某个特定流行梗"}, "senticnet_zh": {"polarity": "NEGATIVE", "intensity": 57.0, "emotions": "loathing (93.64%) & sadness (84.39%)", "sarcasm": "No sarcasm detected", "depression": 50.0, "toxicity": 33.33}, "keyword": {"is_sarcastic": true, "matched_markers": ["千玺"], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": -1.0, "keyword": -1.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": false, "keyword": true}, "polarity_disagreement_std": 0.0, "polarity_range": 0.0, "sarcasm_disagreement": true}, {"text": "抖人别太会总结", "ground_truth_sarcastic": true, "scenario": "调侃一句话精准封神", "current_meaning": "用于夸对方总结得非常精准到位且好笑，带有短视频评论区高赞神评式的调侃赞美。", "claude": {"sentiment_polarity": "negative", "sentiment_confidence": 0.65, "is_sarcastic": true, "sarcasm_confidence": 0.85, "literal_meaning": "抖音用户别太会总结。", "likely_intent": "讽刺抖音上的内容/总结过度套路化", "ambiguity_note": null}, "senticnet_zh": {"polarity": "POSITIVE", "intensity": 64.0, "emotions": "ecstasy (77.95%) & pleasantness (90.45%)", "sarcasm": "No sarcasm detected", "depression": 0.0, "toxicity": 0.0}, "keyword": {"is_sarcastic": true, "matched_markers": ["抖人"], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": 1.0, "keyword": -1.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": false, "keyword": true}, "polarity_disagreement_std": 1.155, "polarity_range": 2.0, "sarcasm_disagreement": true}, {"text": "田野调查启动", "ground_truth_sarcastic": true, "scenario": "摆出研究姿态顺势起哄", "current_meaning": "用戏谑的学术研究口吻包装围观吃瓜与吐槽，暗示要开始认真深挖细节", "claude": {"sentiment_polarity": "neutral", "sentiment_confidence": 0.55, "is_sarcastic": true, "sarcasm_confidence": 0.65, "literal_meaning": "(社会学)田野调查启动。", "likely_intent": "用学术术语调侃要去现场观察/八卦围观", "ambiguity_note": "学术词被网络化挪用,新鲜梗"}, "senticnet_zh": {"_error": "all_crashed_or_zero"}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": 0.0, "senticnet_zh": null, "keyword": 0.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": null, "keyword": false}, "polarity_disagreement_std": 0.0, "polarity_range": 0.0, "sarcasm_disagreement": true}, {"text": "行，来房间", "ground_truth_sarcastic": true, "scenario": "把人从大群拽去小窗对线", "current_meaning": "用于带点戏谑的强势口吻要求对方转到私聊或小房间继续争论对质", "claude": {"sentiment_polarity": "neutral", "sentiment_confidence": 0.5, "is_sarcastic": false, "sarcasm_confidence": 0.35, "literal_meaning": "行,(那就)来(直播)房间。", "likely_intent": "直播间互动话术", "ambiguity_note": "脱离直播语境可能被误读为暧昧"}, "senticnet_zh": {"polarity": "NEGATIVE", "intensity": 60.0, "emotions": "loathing (36.97%) & rage (33.94%)", "sarcasm": "No sarcasm detected", "depression": 33.33, "toxicity": 50.0}, "keyword": {"is_sarcastic": true, "matched_markers": ["行，"], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": 0.0, "senticnet_zh": -1.0, "keyword": -1.0}, "sarcasm_predictions": {"claude": false, "senticnet_zh": false, "keyword": true}, "polarity_disagreement_std": 0.577, "polarity_range": 1.0, "sarcasm_disagreement": true}, {"text": "我先转发积德", "ground_truth_sarcastic": true, "scenario": "自嘲抢先占个福报位", "current_meaning": "用调侃和自嘲把转发说成积德求好运，以缓和气氛并表达对内容的支持或跟风参与。", "claude": {"sentiment_polarity": "neutral", "sentiment_confidence": 0.5, "is_sarcastic": true, "sarcasm_confidence": 0.6, "literal_meaning": "我先转发(此内容)以积累功德。", "likely_intent": "用迷信式语言反讽信息/谣言/锦鲤式内容的传播", "ambiguity_note": "也可以是真心传统文化式表达"}, "senticnet_zh": {"_error": "all_crashed_or_zero"}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": 0.0, "senticnet_zh": null, "keyword": 0.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": null, "keyword": false}, "polarity_disagreement_std": 0.0, "polarity_range": 0.0, "sarcasm_disagreement": true}, {"text": "古法转发", "ground_truth_sarcastic": true, "scenario": "用土办法完成转发动作", "current_meaning": "用于调侃在转发功能失效或不便使用时，改用手动复制粘贴等原始方式完成转发或搬运内容。", "claude": {"sentiment_polarity": "negative", "sentiment_confidence": 0.55, "is_sarcastic": true, "sarcasm_confidence": 0.75, "literal_meaning": "用古老方法转发(改头换面再发)。", "likely_intent": "讽刺洗稿/把别人内容改一改当原创发", "ambiguity_note": null}, "senticnet_zh": {"polarity": "NEGATIVE", "intensity": 84.0, "emotions": "grief (79.7%) & terror (51.52%)", "sarcasm": "No sarcasm detected", "depression": 50.0, "toxicity": 16.67}, "keyword": {"is_sarcastic": true, "matched_markers": ["古法"], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": -1.0, "keyword": -1.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": false, "keyword": true}, "polarity_disagreement_std": 0.0, "polarity_range": 0.0, "sarcasm_disagreement": true}, {"text": "曲高和寡罢了", "ground_truth_sarcastic": true, "scenario": "察觉对方因作品无人认可失落，用抬高品味的话宽慰", "current_meaning": "用于在没人回应或互动冷场时以自嘲方式缓解尴尬，并顺带表达自己审美或品味较高所以不被理解", "claude": {"sentiment_polarity": "neutral", "sentiment_confidence": 0.55, "is_sarcastic": true, "sarcasm_confidence": 0.7, "literal_meaning": "(我的品味)曲高和寡而已。", "likely_intent": "自嘲式装高雅,实则可能是吐槽自己被冷落或反讽别人不识货", "ambiguity_note": "可以是真自嘲也可以是讽刺装逼"}, "senticnet_zh": {"polarity": "NEGATIVE", "intensity": 42.0, "emotions": "disgust (53.94%) & anger (5.0%)", "sarcasm": "Sarcasm detected (42%)", "depression": 33.33, "toxicity": 66.67}, "keyword": {"is_sarcastic": true, "matched_markers": ["罢了"], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": 0.0, "senticnet_zh": -1.0, "keyword": -1.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": true, "keyword": true}, "polarity_disagreement_std": 0.577, "polarity_range": 1.0, "sarcasm_disagreement": false}, {"text": "一鹅，行啊", "ground_truth_sarcastic": true, "scenario": "抛出惊叹顺势夸一句", "current_meaning": "用于把惊讶的语气转成带点佩服的夸赞，表达对对方或某事的认可和惊喜", "claude": {"sentiment_polarity": "neutral", "sentiment_confidence": 0.45, "is_sarcastic": true, "sarcasm_confidence": 0.6, "literal_meaning": "一只鹅,行啊。(谐音/梗)", "likely_intent": "可能是'一哦'谐音的阴阳附和,或某具体梗的应用", "ambiguity_note": "字面无意义,需要梗识别"}, "senticnet_zh": {"polarity": "NEGATIVE", "intensity": 73.0, "emotions": "loathing (65.08%) & rage (33.94%)", "sarcasm": "Sarcasm detected (73%)", "depression": 66.67, "toxicity": 100.0}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": 0.0, "senticnet_zh": -1.0, "keyword": 0.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": true, "keyword": false}, "polarity_disagreement_std": 0.577, "polarity_range": 1.0, "sarcasm_disagreement": true}, {"text": "千玺开炮！", "ground_truth_sarcastic": false, "scenario": "察觉对方欲放狠话时帮其造势助威", "current_meaning": "用于表达准备开喷或火力输出的态度，强调气势到位和攻击性发言的启动", "claude": {"sentiment_polarity": "negative", "sentiment_confidence": 0.55, "is_sarcastic": false, "sarcasm_confidence": 0.5, "literal_meaning": "千玺开炮!", "likely_intent": "起哄煽动开喷/掀桌", "ambiguity_note": "需要识别具体梗;可以是 hype 也可以是反讽"}, "senticnet_zh": {"_error": "all_crashed_or_zero"}, "keyword": {"is_sarcastic": true, "matched_markers": ["！", "千玺"], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": null, "keyword": -1.0}, "sarcasm_predictions": {"claude": false, "senticnet_zh": null, "keyword": true}, "polarity_disagreement_std": 0.0, "polarity_range": 0.0, "sarcasm_disagreement": true}, {"text": "我还能说什么", "ground_truth_sarcastic": false, "scenario": "摆烂式沉默拒绝继续吐槽", "current_meaning": "用于表达对意料之中结果的无奈与放弃沟通，认为继续吐槽也没有意义。", "claude": {"sentiment_polarity": "negative", "sentiment_confidence": 0.7, "is_sarcastic": false, "sarcasm_confidence": 0.45, "literal_meaning": "我还能说什么呢。", "likely_intent": "无奈/不知该说什么的真情表达", "ambiguity_note": "也可以是反讽——'我还能说啥,你们都对'"}, "senticnet_zh": {"polarity": "NEGATIVE", "intensity": 68.0, "emotions": "grief (87.88%) & fear (28.48%)", "sarcasm": "No sarcasm detected", "depression": 66.67, "toxicity": 0.0}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": -1.0, "keyword": 0.0}, "sarcasm_predictions": {"claude": false, "senticnet_zh": false, "keyword": false}, "polarity_disagreement_std": 0.577, "polarity_range": 1.0, "sarcasm_disagreement": false}, {"text": "毒唯味收收", "ground_truth_sarcastic": false, "scenario": "压一句让火药味降温", "current_meaning": "用于用调侃式短句打断对方的攻击性发言，提醒对方收敛锋芒并给争执降温", "claude": {"sentiment_polarity": "negative", "sentiment_confidence": 0.7, "is_sarcastic": false, "sarcasm_confidence": 0.4, "literal_meaning": "毒唯(极端粉丝)的味道收一收。", "likely_intent": "直接批评对方说话像极端排他粉丝", "ambiguity_note": null}, "senticnet_zh": {"polarity": "POSITIVE", "intensity": 90.0, "emotions": "delight (92.12%) & ecstasy (58.79%)", "sarcasm": "No sarcasm detected", "depression": 0.0, "toxicity": 0.0}, "keyword": {"is_sarcastic": true, "matched_markers": ["毒唯"], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": 1.0, "keyword": -1.0}, "sarcasm_predictions": {"claude": false, "senticnet_zh": false, "keyword": true}, "polarity_disagreement_std": 1.155, "polarity_range": 2.0, "sarcasm_disagreement": true}, {"text": "如何呢，又能怎", "ground_truth_sarcastic": false, "scenario": "用一句话装作毫不在乎", "current_meaning": "用冷淡敷衍的态度表示无所谓，并传达不想继续交流或结束话题", "claude": {"sentiment_polarity": "negative", "sentiment_confidence": 0.7, "is_sarcastic": false, "sarcasm_confidence": 0.45, "literal_meaning": "(那)如何呢,又能怎么样。", "likely_intent": "鲁迅风格虚无主义自我解构/摆烂式表达", "ambiguity_note": "鲁迅梗,带 ironic distance"}, "senticnet_zh": {"polarity": "POSITIVE", "intensity": 13.0, "emotions": "serenity (53.94%) & acceptance (30.3%)", "sarcasm": "No sarcasm detected", "depression": 0.0, "toxicity": 0.0}, "keyword": {"is_sarcastic": true, "matched_markers": ["如何呢"], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": 1.0, "keyword": -1.0}, "sarcasm_predictions": {"claude": false, "senticnet_zh": false, "keyword": true}, "polarity_disagreement_std": 1.155, "polarity_range": 2.0, "sarcasm_disagreement": true}, {"text": "学挖掘机去蓝翔", "ground_truth_sarcastic": false, "scenario": "用经典调侃语句回应技能学习去处的询问", "current_meaning": "用经典广告式口播答案来调侃式回应或强行接梗，把对话话题拉回到熟悉的经典梗上", "claude": {"sentiment_polarity": "neutral", "sentiment_confidence": 0.5, "is_sarcastic": true, "sarcasm_confidence": 0.55, "literal_meaning": "学挖掘机就去蓝翔技校。", "likely_intent": "经典土味广告梗的玩梗式引用", "ambiguity_note": "脱离梗文化失去全部 ironic 意义"}, "senticnet_zh": {"_error": "all_crashed_or_zero"}, "keyword": {"is_sarcastic": true, "matched_markers": ["蓝翔"], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": 0.0, "senticnet_zh": null, "keyword": -1.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": null, "keyword": true}, "polarity_disagreement_std": 0.707, "polarity_range": 1.0, "sarcasm_disagreement": false}, {"text": "那就可劲造", "ground_truth_sarcastic": false, "scenario": "放开胃口大口开吃", "current_meaning": "用于催促或鼓励对方别拘着，放开吃喝，尽情享用", "claude": {"sentiment_polarity": "neutral", "sentiment_confidence": 0.55, "is_sarcastic": true, "sarcasm_confidence": 0.6, "literal_meaning": "那就使劲造(挥霍/搞)。", "likely_intent": "起哄式怂恿,带玩笑性反讽", "ambiguity_note": null}, "senticnet_zh": {"polarity": "POSITIVE", "intensity": 90.0, "emotions": "enthusiasm (81.82%) & ecstasy (81.52%)", "sarcasm": "No sarcasm detected", "depression": 0.0, "toxicity": 0.0}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": 0.0, "senticnet_zh": 1.0, "keyword": 0.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": false, "keyword": false}, "polarity_disagreement_std": 0.577, "polarity_range": 1.0, "sarcasm_disagreement": true}, {"text": "太电影感了", "ground_truth_sarcastic": false, "scenario": "夸赞照片质感像大片", "current_meaning": "用于夸赞画面具有电影般的质感和审美风格，并认可这种刻意营造的效果很高级很到位", "claude": {"sentiment_polarity": "positive", "sentiment_confidence": 0.65, "is_sarcastic": false, "sarcasm_confidence": 0.5, "literal_meaning": "太有电影质感了。", "likely_intent": "夸赞某场景/画面有电影感", "ambiguity_note": "也可能反讽某事物过度做作或假装文艺"}, "senticnet_zh": {"_error": "all_crashed_or_zero"}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": 1.0, "senticnet_zh": null, "keyword": 0.0}, "sarcasm_predictions": {"claude": false, "senticnet_zh": null, "keyword": false}, "polarity_disagreement_std": 0.707, "polarity_range": 1.0, "sarcasm_disagreement": false}, {"text": "比比拉布～", "ground_truth_sarcastic": false, "scenario": "响应对方表演邀约用荒诞拟声制造搞笑互动", "current_meaning": "用拟声或口播台词直接接话，以荒诞洗脑的节奏制造搞笑效果并增强互动感", "claude": {"sentiment_polarity": "neutral", "sentiment_confidence": 0.4, "is_sarcastic": false, "sarcasm_confidence": 0.4, "literal_meaning": "(拟声/语气词)", "likely_intent": "看起来是表情包配文或撒娇式拟声", "ambiguity_note": "字面无意义,需要梗识别"}, "senticnet_zh": {"polarity": "POSITIVE", "intensity": 43.0, "emotions": "ecstasy (68.03%) & eagerness (61.67%)", "sarcasm": "No sarcasm detected", "depression": 0.0, "toxicity": 0.0}, "keyword": {"is_sarcastic": true, "matched_markers": ["～"], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": 0.0, "senticnet_zh": 1.0, "keyword": -1.0}, "sarcasm_predictions": {"claude": false, "senticnet_zh": false, "keyword": true}, "polarity_disagreement_std": 1.0, "polarity_range": 2.0, "sarcasm_disagreement": true}, {"text": "那必须滴", "ground_truth_sarcastic": false, "scenario": "盖章夸奖成果相当在线", "current_meaning": "用于对某个成果或表现给出非常确定的肯定和满分认可", "claude": {"sentiment_polarity": "positive", "sentiment_confidence": 0.55, "is_sarcastic": false, "sarcasm_confidence": 0.5, "literal_meaning": "那必须的(应承)。", "likely_intent": "玩笑式肯定附和", "ambiguity_note": "可以是真心也可以是反讽附和"}, "senticnet_zh": {"polarity": "NEGATIVE", "intensity": 62.0, "emotions": "grief (100%) & rage (1.67%)", "sarcasm": "No sarcasm detected", "depression": 33.33, "toxicity": 16.67}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": 1.0, "senticnet_zh": -1.0, "keyword": 0.0}, "sarcasm_predictions": {"claude": false, "senticnet_zh": false, "keyword": false}, "polarity_disagreement_std": 1.0, "polarity_range": 2.0, "sarcasm_disagreement": false}, {"text": "这张很有质感", "ground_truth_sarcastic": false, "scenario": "轻描淡写给出肯定", "current_meaning": "用生活方式和审美营销式的话术对作品进行轻度夸赞，暗示其看起来高级且有品味。", "claude": {"sentiment_polarity": "positive", "sentiment_confidence": 0.7, "is_sarcastic": false, "sarcasm_confidence": 0.4, "literal_meaning": "这张照片/画面很有质感。", "likely_intent": "夸某照片/画面拍得有质感", "ambiguity_note": "可能反讽某照片其实糊但被美化称作有质感"}, "senticnet_zh": {"polarity": "NEGATIVE", "intensity": 87.0, "emotions": "grief (97.73%) & terror (77.58%)", "sarcasm": "No sarcasm detected", "depression": 100.0, "toxicity": 83.33}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": 1.0, "senticnet_zh": -1.0, "keyword": 0.0}, "sarcasm_predictions": {"claude": false, "senticnet_zh": false, "keyword": false}, "polarity_disagreement_std": 1.0, "polarity_range": 2.0, "sarcasm_disagreement": false}, {"text": "直接失禁", "ground_truth_sarcastic": false, "scenario": "夸张宣布情绪直接失控", "current_meaning": "用于以夸张方式表达被某事震惊或荒诞到忍不住发笑，强调情绪失控与崩溃。", "claude": {"sentiment_polarity": "negative", "sentiment_confidence": 0.65, "is_sarcastic": true, "sarcasm_confidence": 0.7, "literal_meaning": "直接尿失禁(夸张表达)。", "likely_intent": "网络夸张表达,'笑到失禁'或'吓到失禁'的省略", "ambiguity_note": "极度依赖语境"}, "senticnet_zh": {"polarity": "POSITIVE", "intensity": 66.0, "emotions": "ecstasy (80.61%) & enthusiasm (55.91%)", "sarcasm": "No sarcasm detected", "depression": 0.0, "toxicity": 0.0}, "keyword": {"is_sarcastic": true, "matched_markers": ["失禁"], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": 1.0, "keyword": -1.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": false, "keyword": true}, "polarity_disagreement_std": 1.155, "polarity_range": 2.0, "sarcasm_disagreement": true}, {"text": "被卡视野了", "ground_truth_sarcastic": false, "scenario": "盖章判定翻车源于视野差", "current_meaning": "用于把突然失败或离谱失误归因于视野受限或信息没看清导致被偷袭，也常带有自我开脱和吐槽的语气", "claude": {"sentiment_polarity": "negative", "sentiment_confidence": 0.6, "is_sarcastic": false, "sarcasm_confidence": 0.4, "literal_meaning": "(游戏中)被对方挡住了视野。", "likely_intent": "游戏术语,字面陈述也可能比喻日常情境", "ambiguity_note": null}, "senticnet_zh": {"_error": "all_crashed_or_zero"}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": null, "keyword": 0.0}, "sarcasm_predictions": {"claude": false, "senticnet_zh": null, "keyword": false}, "polarity_disagreement_std": 0.707, "polarity_range": 1.0, "sarcasm_disagreement": false}, {"text": "你这自带破碎感", "ground_truth_sarcastic": false, "scenario": "顺势夸赞造型易碎美", "current_meaning": "把略显邋遢或状态不佳的外表审美化为脆弱文艺的氛围，用来夸赞和美化形象。", "claude": {"sentiment_polarity": "neutral", "sentiment_confidence": 0.5, "is_sarcastic": false, "sarcasm_confidence": 0.5, "literal_meaning": "你自带破碎感(脆弱忧郁的气质)。", "likely_intent": "用小红书审美词描述对方气质,可能夸赞也可能反讽", "ambiguity_note": "'破碎感'近年小红书流行词,正反两用"}, "senticnet_zh": {"polarity": "POSITIVE", "intensity": 31.0, "emotions": "eagerness (89.39%) & serenity (70.61%)", "sarcasm": "No sarcasm detected", "depression": 0.0, "toxicity": 0.0}, "keyword": {"is_sarcastic": true, "matched_markers": ["破碎感"], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": 0.0, "senticnet_zh": 1.0, "keyword": -1.0}, "sarcasm_predictions": {"claude": false, "senticnet_zh": false, "keyword": true}, "polarity_disagreement_std": 1.0, "polarity_range": 2.0, "sarcasm_disagreement": true}, {"text": "很有夏天的感觉", "ground_truth_sarcastic": false, "scenario": "盖章认定氛围很清爽", "current_meaning": "用歌曲七里香的标志性表达来形容当下氛围清爽明亮，带有青春夏日感与轻度怀旧认同。", "claude": {"sentiment_polarity": "positive", "sentiment_confidence": 0.7, "is_sarcastic": false, "sarcasm_confidence": 0.3, "literal_meaning": "很有夏天的感觉。", "likely_intent": "夸赞某物/场景有夏天的氛围", "ambiguity_note": null}, "senticnet_zh": {"_error": "all_crashed_or_zero"}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": 1.0, "senticnet_zh": null, "keyword": 0.0}, "sarcasm_predictions": {"claude": false, "senticnet_zh": null, "keyword": false}, "polarity_disagreement_std": 0.707, "polarity_range": 1.0, "sarcasm_disagreement": false}, {"text": "我心澎湃", "ground_truth_sarcastic": false, "scenario": "察觉对方欲燃动氛围时激昂附和推升情绪", "current_meaning": "用雷军式的热血口吻接住对话氛围，表达强烈认同并把情绪推到高潮。", "claude": {"sentiment_polarity": "positive", "sentiment_confidence": 0.7, "is_sarcastic": false, "sarcasm_confidence": 0.45, "literal_meaning": "我心情激动澎湃。", "likely_intent": "表达激动情绪", "ambiguity_note": "近年常被反讽用——'就这都心澎湃'"}, "senticnet_zh": {"polarity": "POSITIVE", "intensity": 58.0, "emotions": "ecstasy (63.94%) & pleasantness (97.8%)", "sarcasm": "No sarcasm detected", "depression": 0.0, "toxicity": 0.0}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": 1.0, "senticnet_zh": 1.0, "keyword": 0.0}, "sarcasm_predictions": {"claude": false, "senticnet_zh": false, "keyword": false}, "polarity_disagreement_std": 0.577, "polarity_range": 1.0, "sarcasm_disagreement": false}, {"text": "我的刀盾！", "ground_truth_sarcastic": false, "scenario": "用空耳怪叫抢答问题", "current_meaning": "用于在提问互动中用空耳式怪叫强行抢答，把正常交流带偏成抽象笑点，以制造反差和搞笑效果", "claude": {"sentiment_polarity": "positive", "sentiment_confidence": 0.55, "is_sarcastic": false, "sarcasm_confidence": 0.4, "literal_meaning": "我的刀盾!", "likely_intent": "可能游戏配装感叹或某具体梗的引用", "ambiguity_note": "需要游戏/梗语境"}, "senticnet_zh": {"polarity": "POSITIVE", "intensity": 92.0, "emotions": "delight (78.79%)", "sarcasm": "No sarcasm detected", "depression": 0.0, "toxicity": 0.0}, "keyword": {"is_sarcastic": true, "matched_markers": ["！"], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": 1.0, "senticnet_zh": 1.0, "keyword": -1.0}, "sarcasm_predictions": {"claude": false, "senticnet_zh": false, "keyword": true}, "polarity_disagreement_std": 1.155, "polarity_range": 2.0, "sarcasm_disagreement": true}, {"text": "沧州六大神人", "ground_truth_sarcastic": false, "scenario": "察觉对方行为引发广泛质疑，用夸张语气调侃其离谱", "current_meaning": "用夸张封神的方式表达对他人行为离谱程度的强烈感叹与调侃", "claude": {"sentiment_polarity": "neutral", "sentiment_confidence": 0.5, "is_sarcastic": true, "sarcasm_confidence": 0.6, "literal_meaning": "沧州六大神人(某地某种人的合称)。", "likely_intent": "用反讽式封号嘲讽某些人物", "ambiguity_note": "需要具体地域梗识别"}, "senticnet_zh": {"polarity": "POSITIVE", "intensity": 87.0, "emotions": "ecstasy (95.83%) & enthusiasm (91.21%)", "sarcasm": "No sarcasm detected", "depression": 0.0, "toxicity": 0.0}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": 0.0, "senticnet_zh": 1.0, "keyword": 0.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": false, "keyword": false}, "polarity_disagreement_std": 0.577, "polarity_range": 1.0, "sarcasm_disagreement": true}, {"text": "不怕银笑幻，发", "ground_truth_sarcastic": false, "scenario": "起哄怂恿直接发出内容", "current_meaning": "用于起哄或自我打气时，表示不再顾虑会被嘲笑，直接推动对方或自己立刻发言或发布内容", "claude": {"sentiment_polarity": "neutral", "sentiment_confidence": 0.4, "is_sarcastic": true, "sarcasm_confidence": 0.55, "literal_meaning": "不怕(被)阴笑换/银笑幻,发吧。", "likely_intent": "鼓动对方不要怕被阴阳怪气,大胆发表", "ambiguity_note": "'银笑幻'看起来是'阴笑换/阴阳怪气'的谐音梗"}, "senticnet_zh": {"polarity": "POSITIVE", "intensity": 67.0, "emotions": "enthusiasm (48.03%) & bliss (41.52%)", "sarcasm": "No sarcasm detected", "depression": 0.0, "toxicity": 0.0}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": 0.0, "senticnet_zh": 1.0, "keyword": 0.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": false, "keyword": false}, "polarity_disagreement_std": 0.577, "polarity_range": 1.0, "sarcasm_disagreement": true}, {"text": "行，样品来一份", "ground_truth_sarcastic": false, "scenario": "用轻佻语气催促兑现", "current_meaning": "用于把对方的承诺当作可以先交付部分成果的东西，以半开玩笑的方式催促对方尽快行动并兑现。", "claude": {"sentiment_polarity": "negative", "sentiment_confidence": 0.6, "is_sarcastic": true, "sarcasm_confidence": 0.75, "literal_meaning": "行,样品给我一份。", "likely_intent": "用商品语调侃对方,讽刺其表演性强像广告样品", "ambiguity_note": null}, "senticnet_zh": {"polarity": "NEGATIVE", "intensity": 84.0, "emotions": "grief (77.42%) & rage (33.94%)", "sarcasm": "No sarcasm detected", "depression": 0.0, "toxicity": 16.67}, "keyword": {"is_sarcastic": true, "matched_markers": ["行，"], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": -1.0, "keyword": -1.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": false, "keyword": true}, "polarity_disagreement_std": 0.0, "polarity_range": 0.0, "sarcasm_disagreement": true}, {"text": "先等公告出来", "ground_truth_sarcastic": false, "scenario": "用流程口吻泼冷水", "current_meaning": "用一本正经的流程和公文口吻让人冷静下来，提醒结果未定不要过早下结论或提前庆祝", "claude": {"sentiment_polarity": "neutral", "sentiment_confidence": 0.55, "is_sarcastic": true, "sarcasm_confidence": 0.7, "literal_meaning": "先等正式公告出来。", "likely_intent": "用程序词反问/拖延,表面合理实则讽刺对方下定论太早", "ambiguity_note": null}, "senticnet_zh": {"polarity": "POSITIVE", "intensity": 66.0, "emotions": "ecstasy (70.91%) & enthusiasm (51.82%)", "sarcasm": "No sarcasm detected", "depression": 0.0, "toxicity": 0.0}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": 0.0, "senticnet_zh": 1.0, "keyword": 0.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": false, "keyword": false}, "polarity_disagreement_std": 0.577, "polarity_range": 1.0, "sarcasm_disagreement": true}, {"text": "GG ez", "ground_truth_sarcastic": true, "scenario": "End-of-match chat after Player A's team won decisively. Player A typed this to the losing team.", "current_meaning": "taunting / hostile", "claude": {"literal_meaning": "Post-stomp 'GG ez' is canonical gaming taunt; 'easy' marks the GG as insincere mock-celebration.", "likely_intent": "taunting / hostile", "is_sarcastic": true, "sentiment_polarity": "negative"}, "senticnet_zh": {"_error": "english_input_not_supported"}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": null, "keyword": 0.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": null, "keyword": false}, "polarity_disagreement_std": 0.5, "polarity_range": 1.0, "sarcasm_disagreement": true, "is_gaming": true}, {"text": "nice try teammate", "ground_truth_sarcastic": true, "scenario": "Said by Player A after Player B missed an easy shot in a co-op match.", "current_meaning": "passive-aggressive critique", "claude": {"literal_meaning": "Post-failure 'nice try' from a teammate is reliably ironic — encouragement-shaped blame.", "likely_intent": "passive-aggressive critique", "is_sarcastic": true, "sentiment_polarity": "negative"}, "senticnet_zh": {"_error": "english_input_not_supported"}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": null, "keyword": 0.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": null, "keyword": false}, "polarity_disagreement_std": 0.5, "polarity_range": 1.0, "sarcasm_disagreement": true, "is_gaming": true}, {"text": "what a play", "ground_truth_sarcastic": true, "scenario": "Said in voice chat after Player A made a poor decision that lost the team a fight.", "current_meaning": "sarcastic mockery", "claude": {"literal_meaning": "Following a clearly bad decision, 'what a play' inverts to mockery — the praise is the joke.", "likely_intent": "sarcastic mockery", "is_sarcastic": true, "sentiment_polarity": "negative"}, "senticnet_zh": {"_error": "english_input_not_supported"}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": null, "keyword": 0.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": null, "keyword": false}, "polarity_disagreement_std": 0.5, "polarity_range": 1.0, "sarcasm_disagreement": true, "is_gaming": true}, {"text": "git gud scrub", "ground_truth_sarcastic": false, "scenario": "Said by a veteran player to a newer player after the new player asked for help.", "current_meaning": "performative bro-hostility / actually bonding", "claude": {"literal_meaning": "In gaming subculture this is performative bro-banter; literal hostility is reframed as in-group bonding when in response to a help request.", "likely_intent": "performative bro-hostility / actually bonding", "is_sarcastic": false, "sentiment_polarity": "neutral"}, "senticnet_zh": {"_error": "english_input_not_supported"}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": 0.0, "senticnet_zh": null, "keyword": 0.0}, "sarcasm_predictions": {"claude": false, "senticnet_zh": null, "keyword": false}, "polarity_disagreement_std": 0.5, "polarity_range": 1.0, "sarcasm_disagreement": true, "is_gaming": true}, {"text": "thanks for the carry", "ground_truth_sarcastic": true, "scenario": "Said by Player A to Player B who actually played poorly. Player A actually carried the team.", "current_meaning": "ironic credit-flip", "claude": {"literal_meaning": "Reverse-attribution sarcasm: Player A thanks the underperforming Player B for a carry that A actually did. The polite frame is the burn.", "likely_intent": "ironic credit-flip", "is_sarcastic": true, "sentiment_polarity": "negative"}, "senticnet_zh": {"_error": "english_input_not_supported"}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": null, "keyword": 0.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": null, "keyword": false}, "polarity_disagreement_std": 0.5, "polarity_range": 1.0, "sarcasm_disagreement": true, "is_gaming": true}, {"text": "you good bro?", "ground_truth_sarcastic": true, "scenario": "Said sarcastically to a teammate after they made a clearly bad play", "current_meaning": "Mock-concern after a teammate's bad play", "claude": {"literal_meaning": "Asking if a teammate is okay", "likely_intent": "Mock-concern after a bad play", "is_sarcastic": true, "sentiment_polarity": "negative"}, "senticnet_zh": {"_error": "english_input_not_supported"}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": null, "keyword": 0.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": null, "keyword": false}, "polarity_disagreement_std": 0.5, "polarity_range": 1.0, "sarcasm_disagreement": true, "is_gaming": true}, {"text": "absolute cinema", "ground_truth_sarcastic": true, "scenario": "Said with mock-praise to describe a chaotic team-wipe in a co-op match", "current_meaning": "Ironic redescription of a disaster as a cinematic moment", "claude": {"literal_meaning": "Calling something visually epic / cinematic", "likely_intent": "Ironic praise of a team disaster", "is_sarcastic": true, "sentiment_polarity": "negative"}, "senticnet_zh": {"_error": "english_input_not_supported"}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": null, "keyword": 0.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": null, "keyword": false}, "polarity_disagreement_std": 0.5, "polarity_range": 1.0, "sarcasm_disagreement": true, "is_gaming": true}, {"text": "+rep great teammate", "ground_truth_sarcastic": true, "scenario": "Mock-positive review left after the named player threw the match", "current_meaning": "Sarcastic positive review framed as commendation", "claude": {"literal_meaning": "Positive teammate commendation", "likely_intent": "Mock-praise after the player threw", "is_sarcastic": true, "sentiment_polarity": "negative"}, "senticnet_zh": {"_error": "english_input_not_supported"}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": null, "keyword": 0.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": null, "keyword": false}, "polarity_disagreement_std": 0.5, "polarity_range": 1.0, "sarcasm_disagreement": true, "is_gaming": true}, {"text": "no diff", "ground_truth_sarcastic": true, "scenario": "Said by the winning team after dominating - claiming there was no skill gap when there clearly was", "current_meaning": "Sarcastic denial of skill gap to taunt the loser", "claude": {"literal_meaning": "There's no skill difference between us", "likely_intent": "Taunt — claiming equality after a stomp", "is_sarcastic": true, "sentiment_polarity": "negative"}, "senticnet_zh": {"_error": "english_input_not_supported"}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": -1.0, "senticnet_zh": null, "keyword": 0.0}, "sarcasm_predictions": {"claude": true, "senticnet_zh": null, "keyword": false}, "polarity_disagreement_std": 0.5, "polarity_range": 1.0, "sarcasm_disagreement": true, "is_gaming": true}, {"text": "well played", "ground_truth_sarcastic": false, "scenario": "Sincere post-match acknowledgement after a competitive game", "current_meaning": "Genuine post-match courtesy", "claude": {"literal_meaning": "Sincere acknowledgement of good play", "likely_intent": "Post-match courtesy", "is_sarcastic": false, "sentiment_polarity": "positive"}, "senticnet_zh": {"_error": "english_input_not_supported"}, "keyword": {"is_sarcastic": false, "matched_markers": [], "method": "lexical_marker_match"}, "polarity_encoded": {"claude": 1.0, "senticnet_zh": null, "keyword": 0.0}, "sarcasm_predictions": {"claude": false, "senticnet_zh": null, "keyword": false}, "polarity_disagreement_std": 0.5, "polarity_range": 1.0, "sarcasm_disagreement": false, "is_gaming": true}];
+
+const heatmapEl = document.getElementById("heatmap");
+heatmapEl.innerHTML = `
+  <div class="heatmap-header"></div>
+  <div class="heatmap-header">SN</div>
+  <div class="heatmap-header">Claude</div>
+  <div class="heatmap-header">Keyw</div>
+  <div class="heatmap-header">Std</div>
+` + HEATMAP_DATA.map(r => {
+  function cell(p) {
+    if (p === null || p === undefined) return `<div class="heatmap-cell none">—</div>`;
+    const cls = p === 1 ? "pos" : p === -1 ? "neg" : "neu";
+    const letter = p === 1 ? "+" : p === -1 ? "−" : "○";
+    return `<div class="heatmap-cell ${cls}">${letter}</div>`;
+  }
+  const std = r.polarity_disagreement_std;
+  const stdShade = std >= 1.0 ? "#8b1a1a" : std >= 0.7 ? "#c54040" : std >= 0.5 ? "#d8a0a0" : "#eee";
+  const stdColor = std >= 0.7 ? "white" : "var(--ink-soft)";
+  return `<div class="heatmap-row ${r.ground_truth_sarcastic ? 'gt-sarc' : ''}">
+    <div class="heatmap-text">${r.text}</div>
+    ${cell(r.polarity_encoded.senticnet_zh)}
+    ${cell(r.polarity_encoded.claude)}
+    ${cell(r.polarity_encoded.keyword)}
+    <div class="heatmap-cell" style="background:${stdShade}; color:${stdColor};">${std.toFixed(2)}</div>
+  </div>`;
+}).join("");
+</script>
+
+</body>
+</html>
